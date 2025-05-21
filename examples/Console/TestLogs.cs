@@ -42,14 +42,14 @@ internal sealed class TestLogs
                      *
                      */
 
-                    var protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                    OpenTelemetry.Exporter.OtlpExportProtocol protocol = default;
 
                     if (!string.IsNullOrEmpty(options.Protocol))
                     {
-                        switch (options.Protocol.Trim())
+                        switch (options.Protocol!.Trim())
                         {
                             case "grpc":
-                                protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                                protocol = default;
                                 break;
                             case "http/protobuf":
                                 protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
@@ -68,7 +68,7 @@ internal sealed class TestLogs
 
                     if (!string.IsNullOrEmpty(options.ProcessorType))
                     {
-                        switch (options.ProcessorType.Trim())
+                        switch (options.ProcessorType!.Trim())
                         {
                             case "batch":
                                 processorType = ExportProcessorType.Batch;
@@ -89,9 +89,26 @@ internal sealed class TestLogs
                     opt.AddOtlpExporter((exporterOptions, processorOptions) =>
                     {
                         exporterOptions.Protocol = protocol;
+#if NETFRAMEWORK
+                        if (exporterOptions.Protocol == default)
+                        {
+                            exporterOptions.HttpClientFactory = () =>
+                            {
+                                var handler = new WinHttpHandler
+                                {
+                                    ServerCertificateValidationCallback = (_, _, _, _) => true,
+                                };
+
+                                return new HttpClient(handler)
+                                {
+                                    Timeout = TimeSpan.FromMilliseconds(exporterOptions.TimeoutMilliseconds),
+                                };
+                            };
+                        }
+#endif
                         if (!string.IsNullOrWhiteSpace(options.Endpoint))
                         {
-                            exporterOptions.Endpoint = new Uri(options.Endpoint);
+                            exporterOptions.Endpoint = new Uri(options.Endpoint!);
                         }
 
                         if (processorType == ExportProcessorType.Simple)
